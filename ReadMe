@@ -74,7 +74,10 @@ The task should appear in the "To Do" column of Number 2's board within millisec
 Both windows now show the same task. The To Do count shows 1 on both.
 
 Check Window C (Frank, devops). The task should NOT appear on Frank's board. Group isolation confirmed again.
-                                                                                                                                                                           
+![image alt](https://github.com/Sbomelo/TaskManager/blob/master/Screenshot%20(50).png?raw=true)
+![image alt](https://github.com/Sbomelo/TaskManager/blob/master/Screenshot%20(51).png?raw=true)
+![image alt](https://github.com/Sbomelo/TaskManager/blob/master/Screenshot%20(52).png?raw=true)
+![image alt](https://github.com/Sbomelo/TaskManager/blob/master/Screenshot%20(53).png?raw=true)
 
 Test Scenario 3 — State Recovery After Late Join
 
@@ -88,7 +91,10 @@ Enter name "Name 5" and board ID "engineering". Click Join.
 Watch Window D. 
 All tasks that were already on the board should immediately appear in the correct columns — Name 5 sees the full board state without having been present when the tasks were created. 
 This is the BoardState delivery working correctly.
-                                                                                                                                                                           
+![image alt](https://github.com/Sbomelo/TaskManager/blob/master/Screenshot%20(54).png?raw=true)
+![image alt](https://github.com/Sbomelo/TaskManager/blob/master/Screenshot%20(55).png?raw=true)
+![image alt](https://github.com/Sbomelo/TaskManager/blob/master/Screenshot%20(56).png?raw=true)
+                                                                                                                                                                       
                                                                                                                                                                            
                                                                                                                                                                            
 Test Scenario 5 — Reconnection and Group Rejoin
