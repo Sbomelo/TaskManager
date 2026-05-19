@@ -58,9 +58,9 @@ Click Join. Watch Window A and B — they should NOT show a "teammate joined" to
 Name 3 is on a different board in a different group. Windows A and B still show viewer count 2.
 
 This confirms Groups work correctly — Name 4 joining DevOps doesn't affect the Engineering board watchers at all.
-![Screenshot1][https://github.com/Sbomelo/TaskManager/blob/master/Screenshot%20(47).png?raw=true]
-![Screenshot2][https://github.com/Sbomelo/TaskManager/blob/master/Screenshot%20(48).png?raw=true]
-![Screenshot3][https://github.com/Sbomelo/TaskManager/blob/master/Screenshot%20(49).png?raw=true]
+![Screenshot1](https://github.com/Sbomelo/TaskManager/blob/master/Screenshot%20(47).png?raw=true)
+![Screenshot2](https://github.com/Sbomelo/TaskManager/blob/master/Screenshot%20(48).png?raw=true)
+![Screenshot3](https://github.com/Sbomelo/TaskManager/blob/master/Screenshot%20(49).png?raw=true)
 
                                                                                                                                                                            
 Test Scenario 2 — Real-Time Task Creation
