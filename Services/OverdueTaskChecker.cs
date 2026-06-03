@@ -2,8 +2,6 @@ using Microsoft.AspNetCore.SignalR;
 using TaskManager.Hubs;                                
 using TaskManager.Models;                                
 
-// Note: TaskStatus is in TaskManager.Models. We alias it to avoid
-// any ambiguity with System.Threading.Tasks types.
 using TaskStatus = TaskManager.Models.TaskStatus;        
 
 namespace TaskManager.Services;
@@ -37,7 +35,7 @@ public class OverdueTaskChecker : BackgroundService
             }
             catch (Exception ex)                           
             {
-                // Log but DON'T re-throw — crashing the loop kills the service
+                
                 _logger.LogError(ex, "Error during overdue task check");
             }
 
@@ -53,12 +51,11 @@ public class OverdueTaskChecker : BackgroundService
 
         var now = DateTime.UtcNow;
 
-        // Find all tasks that have a due date, are in the past, and aren't done
         var overdueTasks = _taskStore           
             .GetAllTask()
             .Where(t =>
-                t.DueDate.HasValue              // Has a due date set
-                && t.DueDate.Value < now       // Due date is on the past
+                t.DueDate.HasValue            
+                && t.DueDate.Value < now      
                 && t.Status != TaskStatus.Done) 
             .ToList();
 
@@ -66,7 +63,6 @@ public class OverdueTaskChecker : BackgroundService
         {
             string groupName = $"board:{task.BoardId}";
 
-            // Push the alert to ONLY the group for this task's board
             await _hubContext.Clients                   
                 .Group(groupName)
                 .SendAsync("OverdueAlert", task.Title, task.BoardId);
