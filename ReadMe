@@ -1,0 +1,110 @@
+Task Manger : A continuation project from Project 1(Notification Board) as i learn SignalR
+
+In Project 1, i built a one-to-many broadcast system: one admin sends, everyone receives. 
+That pattern is elegant precisely because it is simple — the server never needs to think about which clients should receive which messages. 
+It sends to Clients.All and its job is done.
+
+
+WHAT CHANGES NOW?
+Task Manger adds Many senders, many receivers. 
+Messages are filtered by project board (Groups). 
+Shared application state must stay consistent across all clients. 
+Identity matters — who claimed a task? Reconnection must restore full board state
+On this project, I also added  a background service that periodically checks for overdue tasks and notifies the relevant board. 
+
+
+THE SCRENARION PROBLEM
+It is six months after i deployed the Meridian Technologies notification board [Project 1 - NOTIFICATION BOARD]. 
+The Engineering team has grown to twelve developers across three squads. 
+They are using a third-party task tracking tool that has a frustrating limitation: when one developer updates a task's status, no one else knows until they manually refresh. 
+In one incident, two developers both claimed the same unassigned task and spent four hours building the same feature in parallel. 
+The post-mortem cost-of-mistake was estimated at 32 developer hours.
+
+So they asked me to build an internal replacement — a live collaborative task board. 
+
+The requirements:
+
+Multiple project boards — Each squad has its own board. 
+Changes to one board must not appear on others.
+Live task creation — When any developer creates a task, it appears on every connected teammate's board instantly.
+Live status updates — Moving a task from "To Do" → "In Progress" → "Done" is immediately reflected everywhere.
+Task claiming — A developer can "claim" an unassigned task. The moment they do, it shows their name as the assignee on all other screens, and the Claim button disappears (it's already claimed).
+Live viewer count per board — Each board shows how many teammates are currently viewing it.
+State recovery on reconnect — If a developer's connection drops and reconnects, they receive the full current board state, not a blank page.
+Overdue task alerts — A background process checks for overdue tasks and notifies the relevant board's viewers (uses IHubContext).
+
+HOW TO TEST
+
+REQUIREMENTS
+.NET 8 SDK
+VS CODE
+
+Clone the repository
+
+Use the command "dotnet run" on the terminal
+You shou see something like this # Now listening on: http://localhost:5000
+
+
+Test Scenario 1 — Basic Group Isolation
+
+Open Window A at http://localhost:5000. Enter name "Name 1" and board ID "engineering". Click Join. You should see the setup screen replaced by the empty board. Viewer count shows 1.
+
+Open Window B at http://localhost:5000. Enter name "Name 2" and board ID "engineering". Click Join. 
+Watch Window A — you should see a toast: "A teammate joined the board." 
+Viewer count on both windows shows 2.
+
+Open Window C at http://localhost:5000. Enter name "Name 3" and board ID "devops" (different board). 
+Click Join. Watch Window A and B — they should NOT show a "teammate joined" toast. 
+Name 3 is on a different board in a different group. Windows A and B still show viewer count 2.
+
+This confirms Groups work correctly — Name 4 joining DevOps doesn't affect the Engineering board watchers at all.
+![Screenshot1](https://github.com/Sbomelo/TaskManager/blob/master/Screenshot%20(47).png?raw=true)
+![Screenshot2](https://github.com/Sbomelo/TaskManager/blob/master/Screenshot%20(48).png?raw=true)
+![Screenshot3](https://github.com/Sbomelo/TaskManager/blob/master/Screenshot%20(49).png?raw=true)
+
+                                                                                                                                                                           
+Test Scenario 2 — Real-Time Task Creation
+                                                                                                                                                                           
+In Window A (Name 1, engineering): click "+ New Task". 
+Fill in Title: "Build login page", Description: "JWT-based auth", Priority: "High". Click Create Task.
+
+Watch Window B simultaneously. 
+The task should appear in the "To Do" column of Number 2's board within milliseconds — no refresh. 
+
+Both windows now show the same task. The To Do count shows 1 on both.
+
+Check Window C (Frank, devops). The task should NOT appear on Frank's board. Group isolation confirmed again.
+![image alt](https://github.com/Sbomelo/TaskManager/blob/master/Screenshot%20(50).png?raw=true)
+![image alt](https://github.com/Sbomelo/TaskManager/blob/master/Screenshot%20(51).png?raw=true)
+![image alt](https://github.com/Sbomelo/TaskManager/blob/master/Screenshot%20(52).png?raw=true)
+![image alt](https://github.com/Sbomelo/TaskManager/blob/master/Screenshot%20(53).png?raw=true)
+
+Test Scenario 3 — State Recovery After Late Join
+
+Create 3 more tasks in any window on the engineering board using different priorities. 
+Then mark one as In Progress and one as Done. 
+The board now has tasks in all three columns.
+
+Open a brand new Window D at http://localhost:5000. 
+Enter name "Name 5" and board ID "engineering". Click Join.
+
+Watch Window D. 
+All tasks that were already on the board should immediately appear in the correct columns — Name 5 sees the full board state without having been present when the tasks were created. 
+This is the BoardState delivery working correctly.
+![image alt](https://github.com/Sbomelo/TaskManager/blob/master/Screenshot%20(54).png?raw=true)
+![image alt](https://github.com/Sbomelo/TaskManager/blob/master/Screenshot%20(55).png?raw=true)
+![image alt](https://github.com/Sbomelo/TaskManager/blob/master/Screenshot%20(56).png?raw=true)
+                                                                                                                                                                       
+                                                                                                                                                                           
+                                                                                                                                                                           
+Test Scenario 5 — Reconnection and Group Rejoin
+
+In Window A (Number 1): open the browser's DevTools (F12) → Network tab → click the throttle dropdown → select "Offline". 
+This simulates a network drop.
+
+Watch Window A's header — after ~15 seconds, the dot turns red and "Reconnecting..." appears. The "Reconnecting" toast shows.
+
+While Window A is offline, create a task from Window B. It appears on Window B and Window D but NOT on A (A is disconnected).
+
+Set Window A back to Online in DevTools. Watch — SignalR reconnects, the onreconnected handler fires, invoke("JoinBoard", "engineering") runs, the server sends a fresh BoardState, and Window A's board re-populates including the task created while it was offline. 
+The "Reconnected — refreshing board..." toast confirms success.
