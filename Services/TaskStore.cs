@@ -7,89 +7,104 @@ namespace TaskManager.Services;
 
 public class TaskStore
 {
-    private readonly ConcurrentDictionary<string, ConcurrentBag<TaskItem>>
-    _boards = new ConcurrentDictionary<string, ConcurrentBag<TaskItem>>();
+    private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, TaskItem>> _boardTasks = new();
+    private readonly ConcurrentDictionary<string, HashSet<string>> _boardViewers = new();
 
-    private readonly ConcurrentDictionary<string, HashSet<string>> 
-    _boardViewers = new();
-
-
-    //Get all tasks for a board, Returns empty if list not found
     public IEnumerable<TaskItem> GetBoardTasks (string boardId)
     {
-        return _boards.TryGetValue(boardId, out var bag)
-        ? bag.OrderByDescending(t => t.CreatedAt)
-        : Enumerable.Empty<TaskItem>();
+        /*return _boardTasks.TryGetValue(boardId, out var innerDict)
+                ? innerDict.Values
+                : Enumerable.Empty<TaskItem>();*/
+
+        if (_boardTasks.TryGetValue(boardId, out var innerDict))
+        {
+            return innerDict.Values;
+        } 
+        else
+        {
+            return Enumerable.Empty<TaskItem>();
+        }
     }
 
-
-    //Create a new task on a board. Generates server-controlled fields
-    public TaskItem CreateTask(string boardId, CreateTaskRequest request)
+    public TaskItem CreateTask (string boardId, CreateTaskRequest request)
     {
-        var task = new TaskItem
+        var task = new TaskItem                       
         {
-            Id = Guid.NewGuid().ToString(),
-            BoardId = boardId,
-            Title = request.Title.Trim(),
-            Description = request.Description.Trim(),
-            Priority = request.Priority,
-            DueDate = request.DueDate,
-            Status = TaskStatus.Todo,
-            AssignedTo = null,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            Id          = Guid.NewGuid().ToString(),           
+            BoardId     = boardId,                           
+            Title       = request.Title.Trim(),                
+            Description = request.Description.Trim(),         
+            Priority    = request.Priority,                  
+            DueDate     = request.DueDate,                    
+            Status      = TaskStatus.Todo,                      
+            AssignedTo  = null,                                  
+            CreatedAt   = DateTime.UtcNow,                       
+            UpdatedAt   = DateTime.UtcNow                    
         };
 
-        //GetorAdd : get existing bag or create and add a new one
-        var bag = _boards.GetOrAdd(boardId, _ => new ConcurrentBag<TaskItem>());
+        //Get an innerDictionary for this BoardId or create a new one if it does not exist
+        var innerDict = _boardTasks.GetOrAdd(boardId, _=> new ConcurrentDictionary<string, TaskItem>());
 
-        bag.Add(task);
+        //TryAdd on the innerDictionary, task.Id is the key, task object is the value
+        innerDict.TryAdd(task.Id, task);
 
         return task;
     }
 
-
-    //Update a task's status, returns the updated task or nul if not found
-    public TaskItem? UpdateStatus(string boardId, string taskId, TaskStatus newStatus)
+    public TaskItem? UpdateStatus(string boardId, string taskId, Models.TaskStatus newStatus)
     {
-        var task = FindTask(boardId, taskId);
-        if(task == null) return null;
+        //Lookup 1, find the boards inner dictionary
+        if(!_boardTasks.TryGetValue(boardId, out var innerDict))
+            return null;
+        
+        //Lookup 2,inner dictionary find the task by task it
+        if(!innerDict.TryGetValue(taskId, out var task))
+            return null;
 
         task.Status = newStatus;
-        task.UpdatedAt = DateTime.UtcNow;
-
         return task;
     }
 
-
-    public TaskItem? ClaimTask(String boardId, string taskId, string claimedBy)
+    public TaskItem? ClaimTask (string boardId, string taskId, string claimedBy)
     {
-        var task = FindTask(boardId, taskId);
+        //Look up 1 ,outer dictionary find the dictionary of the board
+        if(!_boardTasks.TryGetValue(boardId , out var innerDict))
+            return null;
+        //Lookup 2, inner dictionary find the task by task it in inner dictionary 
+        if(!innerDict.TryGetValue(taskId, out var task))
+            return null;
 
-        //Cannot claim a task if it is already claimed or doesn't exist
-        if(task == null || task.AssignedTo != null ) return null;
+        lock (task)
+        {
+            //check if the task is already claimed
+            if(task.AssignedTo != null)
+                return null;
 
-        task.AssignedTo = claimedBy;
-        task.Status = TaskStatus.InProgress;
-        task.UpdatedAt = DateTime.UtcNow;
+            task.AssignedTo = claimedBy;
+            task.Status = TaskStatus.InProgress;
+        }
         return task;
     }
 
-
-    //GET all tasks across all boards(Used by OverDueTaskChecker)
-    public IEnumerable<TaskItem> GetAllTask() 
-    => _boards.Values.SelectMany(bag => bag);
-
-
-    //Private Helper find task by board ID and task ID
-    private TaskItem? FindTask(string boardId, string taskId)
+    // Get all tasks across ALL boards (used by OverdueTaskChecker).
+    public IEnumerable<TaskItem> GetAllTask()
     {
-        if(!_boards.TryGetValue(boardId, out var bag)) return null;
-        return bag.FirstOrDefault(t => t.Id == taskId);
+       return _boardTasks.Values
+                         .SelectMany(innerDict => innerDict.Values);
+    }              
+                   
+    // Private helper: find a task by board ID and task ID.
+    private TaskItem? FindTask(string boardId, string taskId)     
+    {
+        if (!_boardTasks.TryGetValue(boardId, out var innerDict)) 
+            return null; 
+
+        if(!innerDict.TryGetValue(taskId, out var task))
+            return null;
+        return task;     
     }
 
-
-        public int AddViewer(string boardId, string connectionId)
+    public int AddViewer(string boardId, string connectionId)
     {
         var viewers = _boardViewers.GetOrAdd(boardId, _ => new HashSet<string>());
         lock (viewers) { viewers.Add(connectionId); return viewers.Count; }
@@ -101,6 +116,7 @@ public class TaskStore
             lock (viewers) { viewers.Remove(connectionId); return viewers.Count; }
         return 0;
     }
+
 }
 
 
