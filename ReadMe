@@ -1,4 +1,10 @@
-Task Manger : A continuation project from Project 1(Notification Board) as i learn SignalR
+Part 2: Learning SignalR by building Projects
+
+PROJECT 2 
+
+Task Manger: A continuation project from Project 1(Notification Board) as i learn SignalR
+
+Diificulty : Hard 
 
 In Project 1, i built a one-to-many broadcast system: one admin sends, everyone receives. 
 That pattern is elegant precisely because it is simple — the server never needs to think about which clients should receive which messages. 
