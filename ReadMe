@@ -65,9 +65,9 @@ Click Join. Watch Window A and B — they should NOT show a "teammate joined" to
 Name 3 is on a different board in a different group. Windows A and B still show viewer count 2.
 
 This confirms Groups work correctly — Name 4 joining DevOps doesn't affect the Engineering board watchers at all.
-![Screenshot1](Screenshots/Screenshot(47).png)
-![Screenshot2](Screenshots/Screenshot(48).png)
-![Screenshot3](Screenshots/Screenshot(49).png)
+![Screenshot1](Screenshots/Screenshot-47.png)
+![Screenshot2](Screenshots/Screenshot-48.png)
+![Screenshot3](Screenshots/Screenshot-49.png)
 
                                                                                                                                                                            
 Test Scenario 2 — Real-Time Task Creation
@@ -81,10 +81,10 @@ The task should appear in the "To Do" column of Number 2's board within millisec
 Both windows now show the same task. The To Do count shows 1 on both.
 
 Check Window C (Frank, devops). The task should NOT appear on Frank's board. Group isolation confirmed again.
-![image alt](Screenshots/Screenshot(50).png)
-![image alt](Screenshots/Screenshot(51).png)
-![image alt](Screenshots/Screenshot(52).png)
-![image alt](Screenshots/Screenshot(53).png)
+![image alt](Screenshots/Screenshot-50.png)
+![image alt](Screenshots/Screenshot-51.png)
+![image alt](Screenshots/Screenshot-52.png)
+![image alt](Screenshots/Screenshot-53.png)
 
 
 Test Scenario 3 — State Recovery After Late Join
@@ -99,9 +99,9 @@ Enter name "Name 5" and board ID "engineering". Click Join.
 Watch Window D. 
 All tasks that were already on the board should immediately appear in the correct columns — Name 5 sees the full board state without having been present when the tasks were created. 
 This is the BoardState delivery working correctly.
-![image alt](Screenshots/Screenshot(54).png)
-![image alt](Screenshots/Screenshot(55).)
-![image alt](Screenshots/Screenshot(56).png)
+![image alt](Screenshots/Screenshot-54.png)
+![image alt](Screenshots/Screenshot-55.png)
+![image alt](Screenshots/Screenshot-56.png)
 
 
 Test Scenario 5 — Reconnection and Group Rejoin
