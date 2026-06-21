@@ -123,3 +123,10 @@ Join a board, Create a task
 Set the due date to today or a past date and wait for 10s then, 
 At the bottomm left corner the will be a small pop over saying there's an overdue task.
 The pop over will continuosly appear until the task is marked complete
+
+On the screenshot below, notice on the IN PROGRESS Column, next to the username SIBONELO, 
+The is a time set for when the task is due, 
+Then on the bottomm right corner the current time has exceeded the overdue time so the task is overdue
+There is a pop up at the bottom right corner indicating that a task is overdue, and the tasks title is alse shown
+
+![Overdue task Screenshot](https://github.com/Sbomelo/TaskManager/blob/6240183cca23e7db47f89c668c5e9638f71b9cec/Screenshot%20(67).png)
