@@ -1,74 +1,57 @@
-using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
+using TaskManager.Data;
 using TaskManager.Models;
 using TaskManager.Services;
+using TaskStatus = TaskManager.Models.TaskStatus;
 
 namespace TaskManager.Hubs;
 
+[Authorize]
 public class TaskHub : Hub
 {
-    private readonly TaskStore _taskStore;
+    private readonly AppDbContext _db;
+    private readonly TaskStore _viewers;
 
-    public TaskHub(TaskStore taskStore)
+    public TaskHub(AppDbContext db, TaskStore viewers)
     {
-        _taskStore = taskStore;
+        _db = db;
+        _viewers = viewers;
     }
 
-    //Hub Method 1: JoinBoard
     public async Task JoinBoard(string boardId)
     {
         boardId = boardId.Trim().ToLowerInvariant();
 
-        if (string.IsNullOrWhiteSpace(boardId))
+        var board = await _db.Boards.AsNoTracking().FirstOrDefaultAsync(b => b.Slug == boardId);
+        if (board is null)
         {
-            await Clients.Caller.SendAsync("Error", "Board ID cannot be empty.");
+            await Clients.Caller.SendAsync("Error", $"Board '{boardId}' does not exist.");
             return;
         }
 
-        //Build the group name using the "board :"prefix convention
         string groupName = $"board:{boardId}";
-
-        //Stores boardId on this connection for use in OnDisconnectedAsync
         Context.Items["boardId"] = boardId;
-
-        //Adds this connection to the board's group
         await Groups.AddToGroupAsync(Context.ConnectionId, groupName);
 
-        // Track viewer and get accurate count
-        int viewerCount = _taskStore.AddViewer(boardId, Context.ConnectionId);
+        int viewerCount = _viewers.AddViewer(boardId, Context.ConnectionId);
+        var currentTasks = await _db.Tasks.AsNoTracking().Where(t => t.BoardId == boardId).ToListAsync();
 
-        //Get all Current tasks for this this board from the task store
-        var currentTasks = _taskStore.GetBoardTasks(boardId).ToList();
-
-
-        //Send ONLY to this new client the current board state 
         await Clients.Caller.SendAsync("BoardState", boardId, currentTasks);
-
-        //Notify everyone else on this board that a new viewer has joined
         await Clients.OthersInGroup(groupName).SendAsync("ViewerJoined", Context.ConnectionId);
-
-        //Broadcast accurate count to EVERYONE in the group
         await Clients.Group(groupName).SendAsync("ViewerCountUpdated", viewerCount);
-
     }
 
-    //SignalR auto removes from groups on disconnect
-    //This is for voluntary mid-session board switches
     public async Task LeaveBoard(string boardId)
     {
         boardId = boardId.ToLowerInvariant();
         string groupName = $"board:{boardId}";
 
-        int viewerCount = _taskStore.RemoveViewer(boardId, Context.ConnectionId);
-
+        int viewerCount = _viewers.RemoveViewer(boardId, Context.ConnectionId);
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
-
-        //Notify everyone else that the viewer left the group
         await Clients.OthersInGroup(groupName).SendAsync("ViewerLeft", Context.ConnectionId);
-
-        //Broadcast updated count
         await Clients.Group(groupName).SendAsync("ViewerCountUpdated", viewerCount);
-
         Context.Items.Remove("boardId");
     }
 
@@ -76,103 +59,96 @@ public class TaskHub : Hub
     {
         boardId = boardId.ToLowerInvariant();
 
-        //Reject empty titles before touching the store
-        if (string.IsNullOrWhiteSpace(request.Title))
+        // SignalR doesn't auto-validate DataAnnotations the way [ApiController] does so we enforce them here too.
+        var title = request.Title?.Trim() ?? "";
+        if (title.Length < 3 || title.Length > 120)
         {
-            await Clients.Caller.SendAsync("Error", "Task title cannot be empty.");
+            await Clients.Caller.SendAsync("Error", "Title must be between 3 and 120 characters.");
+            return;
+        }
+        var description = (request.Description ?? "").Trim();
+        if (description.Length > 1000)
+        {
+            await Clients.Caller.SendAsync("Error", "Description is too long (max 1000 characters).");
             return;
         }
 
-        //Delegate creation to the TaskStore
-        var newTask = _taskStore.CreateTask(boardId, request);
+        var task = new TaskItem
+        {
+            BoardId = boardId,
+            Title = title,
+            Description = description,
+            Priority = request.Priority,
+            DueDate = request.DueDate,
+            Status = TaskStatus.Todo,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
 
-
-        //Broadcast to everyone viewing this board that a new task was created
-        //Include the one who created it this is their confirmation
-        await Clients.Group($"board:{boardId}").SendAsync("TaskCreated", newTask);
-
+        _db.Tasks.Add(task);
+        await _db.SaveChangesAsync();
+        await Clients.Group($"board:{boardId}").SendAsync("TaskCreated", task);
     }
 
-
-    public async Task UpdateTaskStatus(string boardId, string taskId, Models.TaskStatus newStatus)
+    public async Task UpdateTaskStatus(string boardId, string taskId, TaskStatus newStatus)
     {
         boardId = boardId.ToLowerInvariant();
 
-        var updateTask = _taskStore.UpdateStatus(boardId, taskId, newStatus);
+        var rows = await _db.Tasks
+            .Where(t => t.Id == taskId && t.BoardId == boardId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(t => t.Status, newStatus)
+                .SetProperty(t => t.UpdatedAt, DateTime.UtcNow));
 
-        if(updateTask == null)
+        if (rows == 0)
         {
             await Clients.Caller.SendAsync("Error", $"Task {taskId} not found");
             return;
         }
 
-
-        //Broadcast the update task to the whole group
-        await Clients.Group($"board:{boardId}").SendAsync("TaskUpdated", updateTask);
+        var updated = await _db.Tasks.AsNoTracking().FirstAsync(t => t.Id == taskId);
+        await Clients.Group($"board:{boardId}").SendAsync("TaskUpdated", updated);
     }
 
-
-    public async Task ClaimTask(string boardId, string taskId, string claimedBy)
+    public async Task ClaimTask(string boardId, string taskId)
     {
         boardId = boardId.ToLowerInvariant();
 
-        if (string.IsNullOrWhiteSpace(claimedBy))
+        var claimedBy = Context.User?.Identity?.Name ?? "Unknown";
+
+        var rows = await _db.Tasks
+            .Where(t => t.Id == taskId && t.BoardId == boardId && t.AssignedTo == null)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(t => t.AssignedTo, claimedBy)
+                .SetProperty(t => t.Status, TaskStatus.InProgress)
+                .SetProperty(t => t.UpdatedAt, DateTime.UtcNow));
+
+        if (rows == 0)
         {
-            await Clients.Caller.SendAsync("Error", "You must provide your name to claim a task");
+            await Clients.Caller.SendAsync("Error", "Could not claim task — it may already be assigned.");
             return;
         }
 
-        var claimed = _taskStore.ClaimTask(boardId, taskId, claimedBy);
-
-        if(claimed == null)
-        {
-            //Could be not found, OR already claimed by someone else
-            await Clients.Caller.SendAsync("Error", "Could not claim task - it maybe already assigned.");
-            return;
-        }
-
+        var claimed = await _db.Tasks.AsNoTracking().FirstAsync(t => t.Id == taskId);
         await Clients.Group($"board:{boardId}").SendAsync("TaskUpdated", claimed);
     }
 
-
-    //LIFE CYCLE : OnConnectedAsync
-    //Minimal here clients call JoinedBoard explicitly to join
     public override async Task OnConnectedAsync()
     {
-        await Clients.Caller.SendAsync(
-            "Connected", 
-            Context.ConnectionId, 
-            DateTime.UtcNow.ToString("o"));
-
+        var userName = Context.User?.Identity?.Name ?? "Unknown";
+        await Clients.Caller.SendAsync("Connected", Context.ConnectionId, userName, DateTime.UtcNow.ToString("o"));
         await base.OnConnectedAsync();
     }
 
-    //LIFECYCLE : OnDisconnectedAsync
-    //Groups are auto-cleaned we just need to notify others
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        //Receive with board this connection was viewing
-        if(Context.Items.TryGetValue("boardId", out var boardIdObj) 
-                && boardIdObj is string boardId 
-                && !string.IsNullOrWhiteSpace(boardId))
+        if (Context.Items.TryGetValue("boardId", out var boardIdObj) && boardIdObj is string boardId && !string.IsNullOrWhiteSpace(boardId))
         {
             string groupName = $"board:{boardId}";
-
-            //Removes viewer and broadcast updated count
-            int viewerCount = _taskStore.RemoveViewer(boardId, Context.ConnectionId);
-
-
-            //Tell remaining board viewers this connection left
+            int viewerCount = _viewers.RemoveViewer(boardId, Context.ConnectionId);
             await Clients.OthersInGroup(groupName).SendAsync("ViewerLeft", Context.ConnectionId);
             await Clients.Group(groupName).SendAsync("ViewerCountUpdated", viewerCount);
-
-            //NOTES : Groups.RemoveFromGroupsAsync is Not needed here
-            //SignalR removes disconnected connections from all groups automatically
         }
-
-        
-
-
         await base.OnDisconnectedAsync(exception);
     }
 }

@@ -1,4 +1,6 @@
-using Microsoft.AspNetCore.SignalR;             
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
+using TaskManager.Data;
 using TaskManager.Hubs;                                
 using TaskManager.Models;                                
 
@@ -8,17 +10,17 @@ namespace TaskManager.Services;
 
 public class OverdueTaskChecker : BackgroundService          
 {
-    private readonly IHubContext<TaskHub> _hubContext;         
-    private readonly TaskStore _taskStore;                  
+    private readonly IHubContext<TaskHub> _hubContext;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<OverdueTaskChecker> _logger;   
 
     public OverdueTaskChecker(                            
         IHubContext<TaskHub> hubContext,
-        TaskStore taskStore,
+         IServiceScopeFactory scopeFactory,
         ILogger<OverdueTaskChecker> logger)
     {
         _hubContext = hubContext;
-        _taskStore  = taskStore;
+        _scopeFactory = scopeFactory;
         _logger     = logger;
     }
 
@@ -39,7 +41,7 @@ public class OverdueTaskChecker : BackgroundService
                 _logger.LogError(ex, "Error during overdue task check");
             }
 
-            // Waits 30 seconds before next check (respects cancellation)
+            // Waits 10 seconds before next check (respects cancellation)
             await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
         }
 
@@ -48,16 +50,14 @@ public class OverdueTaskChecker : BackgroundService
 
     private async Task CheckOverdueTasks()             
     {
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         var now = DateTime.UtcNow;
 
-        var overdueTasks = _taskStore           
-            .GetAllTask()
-            .Where(t =>
-                t.DueDate.HasValue            
-                && t.DueDate.Value < now      
-                && t.Status != TaskStatus.Done) 
-            .ToList();
+        var overdueTasks = await db.Tasks.AsNoTracking()
+           .Where(t => t.DueDate.HasValue && t.DueDate.Value < now && t.Status != TaskStatus.Done)
+           .ToListAsync();
 
         foreach (var task in overdueTasks)               
         {
