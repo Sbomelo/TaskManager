@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meridian Task Board</title>
+   <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+
+<header>
+  <div class="brand"> Meridian Task Board</div>
+  <div class="hdr-right">
+    <div class="viewer-count"><span id="viewer-n">0</span> viewing</div>
+    <div class="conn-pill">
+      <div class="conn-dot" id="dot"></div>
+      <span id="conn-txt">Connecting...</span>
+    </div>
+  </div>
+</header>
+
+<!-- SETUP SCREEN — shown until user provides name + board ID -->
+<div class="setup-screen" id="setup">
+    <div class="setup-card">
+        <h2>Join a Task Board</h2>
+        <p>Enter your name and the board ID to start collaborating in real time.</p>
+        <div class="setup-field">
+            <label>Board</label>
+            <select id="board-id"><option value="">Loading boards...</option></select>
+        </div>
+        <div class="setup-field" id="new-board-field" style="display:none">
+            <label>New Board Name</label>
+            <input type="text" id="new-board-name" placeholder="e.g. mobile-team" maxlength="60">
+        </div>
+        <button class="btn-primary" id="join-btn" disabled>Join Board</button>
+    </div>
+</div>
+
+<!-- BOARD SCREEN — shown after joining -->
+<div class="board-screen" id="board">
+  <div class="board-header">
+    <div class="board-title" id="board-name-display"></div>
+    <button class="add-task-btn" id="open-modal">+ New Task</button>
+  </div>
+  <div class="columns">
+    <div class="column col-todo">
+      <div class="col-header">
+        <span class="col-title">To Do</span>
+        <span class="col-count" id="cnt-todo">0</span>
+      </div>
+      <div class="col-body" id="col-Todo"></div>
+    </div>
+    <div class="column col-prog">
+      <div class="col-header">
+        <span class="col-title">In Progress</span>
+        <span class="col-count" id="cnt-prog">0</span>
+      </div>
+      <div class="col-body" id="col-InProgress"></div>
+    </div>
+    <div class="column col-done">
+      <div class="col-header">
+        <span class="col-title">Done</span>
+        <span class="col-count" id="cnt-done">0</span>
+      </div>
+      <div class="col-body" id="col-Done"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ADD TASK MODAL -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h3>Create New Task</h3>
+    <div class="mfield">
+      <label>Title</label>
+      <input type="text" id="t-title" placeholder="Task title" maxlength="120">
+    </div>
+    <div class="mfield">
+      <label>Description</label>
+      <textarea id="t-desc" placeholder="What needs to be done?"></textarea>
+    </div>
+    <div class="mfield">
+      <label>Priority</label>
+      <select id="t-pri">
+        <option value="Low">Low</option>
+        <option value="Medium" selected>Medium</option>
+        <option value="High">High</option>
+      </select>
+    </div>
+    <div class="mfield">
+      <label>Due Date (optional)</label>
+      <input type="datetime-local" id="t-due">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="close-modal">Cancel</button>
+      <button class="btn-submit" id="submit-task">Create Task</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-zone" id="toasts"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+
+    <script src="/js/board.js"></script>
+</body>
+</html>
