@@ -69,7 +69,16 @@ var app = builder.Build();
 // Apply pending EF migrations automatically on startup
 using (var scope = app.Services.CreateScope())
 {
-    scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.Migrate();
+    try
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.Database.Migrate();
+    }
+    catch (Exception ex)
+    {
+        // Log and handle migration failure
+        throw;
+    }
 }
 
 app.UseDefaultFiles();
